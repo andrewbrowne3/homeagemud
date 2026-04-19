@@ -1,0 +1,15 @@
+services:
+  evennia:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: homagemud
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+      - "4001:4001"
+      - "4002:4002"
+    volumes:
+      - ./mygame:/app/mygame
+    environment:
+      - EVENNIA_DIR=/app/evennia
