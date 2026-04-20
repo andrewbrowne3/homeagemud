@@ -40,6 +40,16 @@ NEW_ACCOUNT_REGISTRATION_ENABLED = True
 MULTISESSION_MODE = 2
 AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
 MAX_NR_CHARACTERS = 5
+
+# Reverse-proxy / CSRF config for Apache -> Evennia on homagemud.com.
+SERVER_HOSTNAME = "homagemud.com"
+ALLOWED_HOSTS = ["homagemud.com", "www.homagemud.com", "localhost", "127.0.0.1"]
+CSRF_TRUSTED_ORIGINS = [
+    "https://homagemud.com",
+    "https://www.homagemud.com",
+]
+USE_X_FORWARDED_HOST = True
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
 ######################################################################
