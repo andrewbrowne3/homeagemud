@@ -77,22 +77,53 @@ let scenes_plugin = (function () {
     var onSceneJoined = function (args, kwargs) { refreshScenes(); };
     var onSceneLeft = function (args, kwargs) { refreshScenes(); };
 
+    var injectPanel = function () {
+        if ($('#scene-panel').length) return;
+        var $panel = $('<div id="scene-panel"></div>').css({
+            position: 'fixed',
+            top: '44px',
+            right: 0,
+            bottom: 0,
+            width: '220px',
+            'z-index': 500,
+            background: '#1a1a1a',
+            color: '#eee',
+            padding: '8px',
+            'border-left': '1px solid #444',
+            'overflow-y': 'auto',
+            'font-size': '13px',
+        });
+        $panel.html([
+            '<div style="display: flex; gap: 4px; margin-bottom: 8px;">',
+            '  <button id="create-scene-btn" class="btn btn-sm btn-primary" type="button" style="flex: 1;">+ Scene</button>',
+            '  <button id="refresh-scenes-btn" class="btn btn-sm btn-outline-secondary" type="button">↻</button>',
+            '</div>',
+            '<h5 style="margin: 4px 0;">Active Scenes</h5>',
+            '<ul id="scene-list" style="list-style: none; padding: 0; margin: 0;"></ul>',
+            '<p id="scene-empty" style="color: #888; font-size: 0.9em; display: none;">No active scenes yet.</p>',
+        ].join('\n'));
+        $('body').append($panel);
+        $('#clientwrapper').css('margin-right', '220px');
+    };
+
     var init = function () {
-        $('#create-scene-btn').on('click', openCreateDialog);
-        $('#refresh-scenes-btn').on('click', refreshScenes);
+        setTimeout(function () {
+            injectPanel();
+            $('#create-scene-btn').on('click', openCreateDialog);
+            $('#refresh-scenes-btn').on('click', refreshScenes);
 
-        if (Evennia && Evennia.emitter) {
-            Evennia.emitter.on('scene_list', onSceneList);
-            Evennia.emitter.on('scene_created', onSceneCreated);
-            Evennia.emitter.on('scene_joined', onSceneJoined);
-            Evennia.emitter.on('scene_left', onSceneLeft);
-        }
+            if (Evennia && Evennia.emitter) {
+                Evennia.emitter.on('scene_list', onSceneList);
+                Evennia.emitter.on('scene_created', onSceneCreated);
+                Evennia.emitter.on('scene_joined', onSceneJoined);
+                Evennia.emitter.on('scene_left', onSceneLeft);
+            }
 
-        // initial refresh shortly after connect, then every 30s
-        setTimeout(refreshScenes, 1500);
-        refreshTimer = setInterval(refreshScenes, 30000);
+            setTimeout(refreshScenes, 1500);
+            refreshTimer = setInterval(refreshScenes, 30000);
 
-        console.log('Scenes Plugin Initialized.');
+            console.log('Scenes Plugin Initialized.');
+        }, 500);
     };
 
     return {

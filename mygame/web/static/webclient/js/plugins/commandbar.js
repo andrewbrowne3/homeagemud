@@ -92,9 +92,32 @@ let commandbar_plugin = (function () {
         });
     };
 
+    var injectBar = function () {
+        if ($('#commandbar').length) return;
+        var $bar = $('<div id="commandbar"></div>').css({
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            'z-index': 500,
+            background: '#1a1a1a',
+            color: '#eee',
+            padding: '4px 8px',
+            'border-bottom': '1px solid #444',
+            'line-height': '1.4',
+            'font-size': '13px',
+        });
+        $('body').append($bar);
+        $('#clientwrapper').css('padding-top', '44px');
+        $('body').css('padding-top', '0');
+    };
+
     var init = function () {
-        renderBar();
-        console.log('Commandbar Plugin Initialized.');
+        setTimeout(function () {
+            injectBar();
+            renderBar();
+            console.log('Commandbar Plugin Initialized.');
+        }, 500);
     };
 
     return {
