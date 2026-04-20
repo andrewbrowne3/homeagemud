@@ -34,6 +34,12 @@ from evennia.settings_default import *
 # This is the name of your game. Make it catchy!
 SERVERNAME = "mygame"
 WEBSERVER_PORTS = [(4001, 4005)]
+
+# Public self-registration and multi-character accounts for RP chat.
+NEW_ACCOUNT_REGISTRATION_ENABLED = True
+MULTISESSION_MODE = 2
+AUTO_CREATE_CHARACTER_WITH_ACCOUNT = False
+MAX_NR_CHARACTERS = 5
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
 ######################################################################

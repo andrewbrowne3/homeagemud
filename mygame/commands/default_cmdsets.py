@@ -19,6 +19,20 @@ from evennia import default_cmds
 # ⬇️ ADD THIS IMPORT
 from evennia.contrib.full_systems.evscaperoom.commands import CmdEvscapeRoomStart
 from evennia.contrib.base_systems.building_menu import GenericBuildingCmd
+from commands.command import (
+    CmdCreateScene,
+    CmdJoinScene,
+    CmdLeaveScene,
+    CmdListScenes,
+)
+
+
+def _add_scene_cmds(cmdset):
+    cmdset.add(CmdCreateScene())
+    cmdset.add(CmdJoinScene())
+    cmdset.add(CmdLeaveScene())
+    cmdset.add(CmdListScenes())
+
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
     """
@@ -38,11 +52,13 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         # ⬇️ ADD THIS COMMAND
         self.add(CmdEvscapeRoomStart())
         self.add(GenericBuildingCmd())
+        _add_scene_cmds(self)
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
     key = "DefaultAccount"
     def at_cmdset_creation(self):
         super().at_cmdset_creation()
+        _add_scene_cmds(self)
 
 
 class UnloggedinCmdSet(default_cmds.UnloggedinCmdSet):

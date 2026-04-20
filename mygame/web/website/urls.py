@@ -10,10 +10,11 @@ from django.urls import path
 
 from evennia.web.website.urls import urlpatterns as evennia_website_urlpatterns
 
+from web.website.views import online_characters
+
 # add patterns here
 urlpatterns = [
-    # path("url-pattern", imported_python_view),
-    # path("url-pattern", imported_python_view),
+    path("online/", online_characters, name="online-characters"),
 ]
 
 # read by Django

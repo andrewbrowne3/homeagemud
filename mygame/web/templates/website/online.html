@@ -1,0 +1,28 @@
+{% extends "website/base.html" %}
+
+{% block titleblock %}Characters Online{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col">
+    <div class="card">
+      <div class="card-body">
+        <h1 class="card-title">Characters Online</h1>
+        <hr />
+        {% if characters %}
+        <ul class="list-group">
+          {% for c in characters %}
+          <li class="list-group-item">
+            <strong>{{ c.name }}</strong>
+            {% if c.account %}<span class="text-muted">&mdash; {{ c.account }}</span>{% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">No one is online right now.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -5,9 +5,192 @@ Commands describe the input the account can do to the game.
 
 """
 
+import evennia
 from evennia.commands.command import Command as BaseCommand
+from evennia.utils.search import search_channel
 
-# from evennia import default_cmds
+SCENE_TAG = "scene"
+SCENE_TAG_CATEGORY = "chat"
+
+
+def _scene_channels():
+    """All channels tagged as user-created scenes."""
+    from evennia.comms.models import ChannelDB
+    return ChannelDB.objects.get_by_tag(key=SCENE_TAG, category=SCENE_TAG_CATEGORY)
+
+
+def scene_payload(channel):
+    subs = channel.subscriptions.all()
+    return {
+        "id": channel.id,
+        "title": channel.key,
+        "description": channel.db.desc or "",
+        "members": [acc.username for acc in subs],
+        "member_count": len(subs),
+    }
+
+
+def _resolve_channel(scene_id=None, title=None):
+    if scene_id:
+        from evennia.comms.models import ChannelDB
+        return ChannelDB.objects.filter(id=scene_id).first()
+    if title:
+        matches = search_channel(title, exact=True)
+        return matches[0] if matches else None
+    return None
+
+
+def _resolve_account(caller):
+    """Given a caller (Account or Character/Session), return the Account."""
+    if hasattr(caller, "username"):
+        return caller
+    account = getattr(caller, "account", None)
+    if account:
+        return account
+    # sessions have .account
+    return None
+
+
+def _reply(session, msg=None, oob_cmd=None, oob_payload=None):
+    if msg and session:
+        session.msg(text=msg)
+    if oob_cmd and session:
+        session.msg(**{oob_cmd: (tuple(), oob_payload or {})})
+
+
+def _session_from_caller(caller):
+    session = getattr(caller, "session", None)
+    if session:
+        return session
+    sessions = getattr(caller, "sessions", None)
+    if sessions and sessions.count():
+        return sessions.get()[0]
+    return None
+
+
+def do_create_scene(account, session, title, description=""):
+    if not title:
+        _reply(session, msg="Usage: createscene <title>[=<description>]")
+        return
+    if search_channel(title, exact=True):
+        _reply(session, msg=f"A scene named '{title}' already exists.")
+        return
+    channel = evennia.create_channel(
+        title,
+        desc=description,
+        locks=f"control:id({account.id}) or perm(Admin);listen:all();send:all()",
+        typeclass="typeclasses.channels.Channel",
+    )
+    channel.tags.add(SCENE_TAG, category=SCENE_TAG_CATEGORY)
+    channel.connect(account)
+    _reply(session, msg=f"Scene '{title}' created. You are now subscribed.",
+           oob_cmd="scene_created", oob_payload=scene_payload(channel))
+
+
+def do_join_scene(account, session, scene_id=None, title=None):
+    channel = _resolve_channel(scene_id=scene_id, title=title)
+    if not channel or not channel.tags.has(SCENE_TAG, category=SCENE_TAG_CATEGORY):
+        _reply(session, msg="Scene not found.")
+        return
+    channel.connect(account)
+    _reply(session, msg=f"Joined scene '{channel.key}'.",
+           oob_cmd="scene_joined", oob_payload=scene_payload(channel))
+
+
+def do_leave_scene(account, session, scene_id=None, title=None):
+    channel = _resolve_channel(scene_id=scene_id, title=title)
+    if not channel:
+        _reply(session, msg="Scene not found.")
+        return
+    channel.disconnect(account)
+    _reply(session, msg=f"Left scene '{channel.key}'.",
+           oob_cmd="scene_left", oob_payload={"id": channel.id, "title": channel.key})
+
+
+def do_list_scenes(account, session):
+    scenes = [scene_payload(c) for c in _scene_channels()]
+    _reply(session, oob_cmd="scene_list", oob_payload={"scenes": scenes})
+    if not scenes:
+        _reply(session, msg="No active scenes.")
+        return
+    lines = ["Active scenes:"]
+    for s in scenes:
+        lines.append(f"  [{s['id']}] {s['title']} ({s['member_count']} in)")
+    _reply(session, msg="\n".join(lines))
+
+
+class CmdCreateScene(BaseCommand):
+    """
+    Create a new roleplay scene (a temporary chat room).
+
+    Usage: createscene <title>[=<description>]
+    """
+
+    key = "createscene"
+    locks = "cmd:pperm(Player)"
+    help_category = "Scenes"
+
+    def func(self):
+        title, description = "", ""
+        if self.args:
+            if "=" in self.args:
+                title, description = [p.strip() for p in self.args.split("=", 1)]
+            else:
+                title = self.args.strip()
+        account = _resolve_account(self.caller)
+        session = _session_from_caller(self.caller)
+        do_create_scene(account, session, title, description)
+
+
+class CmdJoinScene(BaseCommand):
+    """
+    Join an existing scene.
+
+    Usage: joinscene <title>
+    """
+
+    key = "joinscene"
+    locks = "cmd:pperm(Player)"
+    help_category = "Scenes"
+
+    def func(self):
+        account = _resolve_account(self.caller)
+        session = _session_from_caller(self.caller)
+        do_join_scene(account, session, title=self.args.strip() if self.args else None)
+
+
+class CmdLeaveScene(BaseCommand):
+    """
+    Leave a scene.
+
+    Usage: leavescene <title>
+    """
+
+    key = "leavescene"
+    locks = "cmd:pperm(Player)"
+    help_category = "Scenes"
+
+    def func(self):
+        account = _resolve_account(self.caller)
+        session = _session_from_caller(self.caller)
+        do_leave_scene(account, session, title=self.args.strip() if self.args else None)
+
+
+class CmdListScenes(BaseCommand):
+    """
+    List active scenes.
+
+    Usage: listscenes
+    """
+
+    key = "listscenes"
+    locks = "cmd:pperm(Player)"
+    help_category = "Scenes"
+
+    def func(self):
+        account = _resolve_account(self.caller)
+        session = _session_from_caller(self.caller)
+        do_list_scenes(account, session)
 
 
 class Command(BaseCommand):

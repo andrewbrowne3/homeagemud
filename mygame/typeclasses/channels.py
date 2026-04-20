@@ -115,4 +115,7 @@ class Channel(DefaultChannel):
 
     """
 
-    pass
+    def post_leave_channel(self, leaver, **kwargs):
+        super().post_leave_channel(leaver, **kwargs)
+        if self.tags.has("scene", category="chat") and not self.subscriptions.all():
+            self.delete()

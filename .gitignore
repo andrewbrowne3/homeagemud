@@ -7,6 +7,8 @@ __pycache__/
 *.egg-info/
 mygame/server/logs/
 mygame/server/*.db3
+mygame/server/*.pid
+mygame/server/*.restart
 mygame/server/conf/secret_settings.py
 *.sqlite3
 .env
