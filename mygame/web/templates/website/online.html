@@ -7,10 +7,12 @@
   <div class="col">
     <div class="card">
       <div class="card-body">
-        <h1 class="card-title">Characters Online</h1>
+        <h1 class="card-title">Who's Online</h1>
         <hr />
+
+        <h5>Characters</h5>
         {% if characters %}
-        <ul class="list-group">
+        <ul class="list-group mb-3">
           {% for c in characters %}
           <li class="list-group-item">
             <strong>{{ c.name }}</strong>
@@ -19,7 +21,18 @@
           {% endfor %}
         </ul>
         {% else %}
-        <p class="text-muted">No one is online right now.</p>
+        <p class="text-muted">No characters currently being played.</p>
+        {% endif %}
+
+        <h5>Accounts (no character selected)</h5>
+        {% if idle_accounts %}
+        <ul class="list-group">
+          {% for a in idle_accounts %}
+          <li class="list-group-item">{{ a.name }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-muted">None.</p>
         {% endif %}
       </div>
     </div>

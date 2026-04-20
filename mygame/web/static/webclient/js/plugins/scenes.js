@@ -101,4 +101,5 @@ let scenes_plugin = (function () {
         openCreateDialog: openCreateDialog,
     };
 })();
+window.scenes_plugin = scenes_plugin;
 window.plugin_handler.add('scenes', scenes_plugin);

@@ -1,23 +1,39 @@
 /*
  * Commandbar plugin — preset buttons for common Evennia commands.
  *
- * Each button either sends a command immediately (`send: "who"`) or
- * prefills the input field so the user can finish typing (`prefill: "say "`).
+ * Each button entry has ONE of:
+ *   - send:    'command text'    (sends immediately)
+ *   - prefill: 'prefix '         (fills the input, waits for user to finish)
+ *   - action:  'openCreateScene' (calls the named scenes_plugin method)
  *
- * Edit COMMANDS below to change the set.
+ * Optional: group (info|scene|rp|acct), style (primary|danger|secondary).
  */
 let commandbar_plugin = (function () {
 
     var COMMANDS = [
-        { label: 'Look',      send: 'look' },
-        { label: 'Who',       send: 'who' },
-        { label: 'Inventory', send: 'inventory' },
-        { label: 'Help',      send: 'help' },
-        { label: 'Scenes',    send: 'listscenes' },
-        { label: 'Say...',    prefill: 'say ' },
-        { label: 'Pose...',   prefill: 'pose ' },
-        { label: 'Whisper...',prefill: 'whisper ' },
-        { label: 'Home',      send: 'home' },
+        // --- Info ---
+        { label: 'Look',        send: 'look',          group: 'info' },
+        { label: 'Who',         send: 'who',           group: 'info' },
+        { label: 'Help',        send: 'help',          group: 'info' },
+
+        // --- Scenes / channels ---
+        { label: '+ Channel',   action: 'openCreateScene', group: 'scene', style: 'primary' },
+        { label: 'Channels',    send: 'listscenes',    group: 'scene' },
+        { label: 'Join...',     prefill: 'joinscene ', group: 'scene' },
+        { label: 'Leave...',    prefill: 'leavescene ', group: 'scene' },
+
+        // --- RP actions ---
+        { label: 'Say',         prefill: 'say ',       group: 'rp' },
+        { label: 'Pose',        prefill: 'pose ',      group: 'rp' },
+        { label: 'Whisper',     prefill: 'whisper ',   group: 'rp' },
+        { label: 'Page',        prefill: 'page ',      group: 'rp' },
+
+        // --- Account / character ---
+        { label: 'My Chars',    send: 'charlist',      group: 'acct' },
+        { label: 'New Char',    prefill: 'charcreate ', group: 'acct' },
+        { label: 'Play As...',  prefill: 'ic ',        group: 'acct', style: 'primary' },
+        { label: 'OOC',         send: 'ooc',           group: 'acct' },
+        { label: 'Logout',      send: 'quit',          group: 'acct', style: 'danger' },
     ];
 
     var sendText = function (line) {
@@ -36,16 +52,41 @@ let commandbar_plugin = (function () {
         }
     };
 
+    var runAction = function (name) {
+        if (name === 'openCreateScene'
+            && window.scenes_plugin
+            && typeof window.scenes_plugin.openCreateDialog === 'function') {
+            window.scenes_plugin.openCreateDialog();
+            return;
+        }
+        console.warn('Unknown commandbar action:', name);
+    };
+
+    var btnClass = function (style) {
+        switch (style) {
+            case 'primary': return 'btn btn-sm btn-primary';
+            case 'danger':  return 'btn btn-sm btn-outline-danger';
+            default:        return 'btn btn-sm btn-outline-secondary';
+        }
+    };
+
     var renderBar = function () {
         var $bar = $('#commandbar');
         if (!$bar.length) return;
         $bar.empty();
+        var lastGroup = null;
         COMMANDS.forEach(function (cmd) {
-            var $btn = $('<button type="button" class="btn btn-sm btn-outline-secondary" style="margin-right: 4px; margin-bottom: 4px;"></button>')
+            if (cmd.group && lastGroup && cmd.group !== lastGroup) {
+                $bar.append('<span style="display: inline-block; width: 1px; height: 20px; background: #555; margin: 0 6px; vertical-align: middle;"></span>');
+            }
+            lastGroup = cmd.group || lastGroup;
+            var $btn = $('<button type="button" style="margin-right: 4px; margin-bottom: 4px;"></button>')
+                .addClass(btnClass(cmd.style))
                 .text(cmd.label);
             $btn.on('click', function () {
                 if (cmd.send) sendText(cmd.send);
                 else if (cmd.prefill) prefillInput(cmd.prefill);
+                else if (cmd.action) runAction(cmd.action);
             });
             $bar.append($btn);
         });
