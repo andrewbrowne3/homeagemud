@@ -41,4 +41,5 @@ def leavescene(session, *args, **kwargs):
 
 
 def listscenes(session, *args, **kwargs):
-    do_list_scenes(_account(session), session)
+    # called from the webclient on auto-refresh; keep it silent (no chat spam)
+    do_list_scenes(_account(session), session, verbose=False)

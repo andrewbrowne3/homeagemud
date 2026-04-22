@@ -107,9 +107,11 @@ def do_leave_scene(account, session, scene_id=None, title=None):
            oob_cmd="scene_left", oob_payload={"id": channel.id, "title": channel.key})
 
 
-def do_list_scenes(account, session):
+def do_list_scenes(account, session, verbose=True):
     scenes = [scene_payload(c) for c in _scene_channels()]
     _reply(session, oob_cmd="scene_list", oob_payload={"scenes": scenes})
+    if not verbose:
+        return
     if not scenes:
         _reply(session, msg="No active scenes.")
         return
