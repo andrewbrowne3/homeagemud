@@ -50,6 +50,10 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+# Webclient must use the Apache-proxied wss:// URL (the raw ws://host:4002/ is
+# blocked by browsers when loading the page over HTTPS).
+WEBSOCKET_CLIENT_URL = "wss://homagemud.com/ws"
 ######################################################################
 # Settings given in secret_settings.py override those in this file.
 ######################################################################
