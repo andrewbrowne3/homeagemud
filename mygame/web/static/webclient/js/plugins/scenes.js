@@ -50,8 +50,19 @@ let scenes_plugin = (function () {
         popups_plugin.openPopup('#create-scene-dialog');
         var dialog = $('#create-scene-dialog');
         dialog.css({ width: '360px', zIndex: 1000, background: '#222', color: '#eee', padding: '12px', border: '1px solid #555' });
+        // Stop default_in's keydown handler from yanking focus to the chat input
+        if (window.plugins && window.plugins['default_in']) {
+            window.plugins['default_in'].setKeydownFocus(false);
+        }
+        var restoreFocus = function () {
+            if (window.plugins && window.plugins['default_in']) {
+                window.plugins['default_in'].setKeydownFocus(true);
+            }
+        };
+        dialog.find('.dialogclose').on('click', restoreFocus);
         dialog.find('#scene-title-input').focus();
         dialog.find('#scene-create-cancel').on('click', function () {
+            restoreFocus();
             popups_plugin.closePopup('#create-scene-dialog');
         });
         dialog.find('#create-scene-form').on('submit', function () {
@@ -59,6 +70,7 @@ let scenes_plugin = (function () {
             var desc = dialog.find('#scene-desc-input').val().trim();
             if (!title) return false;
             Evennia.msg('createscene', [], { title: title, description: desc });
+            restoreFocus();
             popups_plugin.closePopup('#create-scene-dialog');
             return false;
         });
