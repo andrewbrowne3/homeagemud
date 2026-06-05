@@ -24,6 +24,7 @@ from commands.command import (
     CmdJoinScene,
     CmdLeaveScene,
     CmdListScenes,
+    CmdScore,
 )
 
 
@@ -52,6 +53,7 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         # ⬇️ ADD THIS COMMAND
         self.add(CmdEvscapeRoomStart())
         self.add(GenericBuildingCmd())
+        self.add(CmdScore())
         _add_scene_cmds(self)
 
 class AccountCmdSet(default_cmds.AccountCmdSet):

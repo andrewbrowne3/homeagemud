@@ -7,6 +7,7 @@ Commands describe the input the account can do to the game.
 
 import evennia
 from evennia.commands.command import Command as BaseCommand
+from evennia.utils.evtable import EvTable
 from evennia.utils.search import search_channel
 
 SCENE_TAG = "scene"
@@ -193,6 +194,95 @@ class CmdListScenes(BaseCommand):
         account = _resolve_account(self.caller)
         session = _session_from_caller(self.caller)
         do_list_scenes(account, session)
+
+
+# -------------------------------------------------------------
+# Score / character stats sheet
+# -------------------------------------------------------------
+
+SCORE_WIDTH = 64
+
+
+def gather_score_data(character):
+    """
+    Collect the stats that make up a character's score sheet.
+
+    Reads the AttributeProperty fields defined on the Character typeclass
+    (see typeclasses/characters.py), falling back to safe defaults so the
+    sheet renders even on a stock character. Returns a plain dict so the
+    formatting is easy to test in isolation.
+    """
+    return {
+        "name": character.key,
+        "surname": character.attributes.get("surname", default="n/a"),
+        "charclass": character.attributes.get("charclass", default="Commoner"),
+        "title": character.attributes.get("title", default="n/a"),
+        "house": character.attributes.get("house", default="n/a"),
+        "homage": list(character.attributes.get("homage", default=[]) or []),
+        "skills": dict(character.attributes.get("skills", default={}) or {}),
+    }
+
+
+def format_score_sheet(data):
+    """
+    Render a character score sheet from a data dict (see gather_score_data).
+
+    Pure function: takes plain Python values and returns a display string,
+    so it can be rendered/tested without a live character object.
+    """
+    identity = "\n".join(
+        [
+            f"|cName|n    : {data['name']}",
+            f"|cSurname|n : {data['surname']}",
+            f"|cClass|n   : {data['charclass']}",
+            f"|cTitle|n   : {data['title']}",
+            f"|cHouse|n   : {data['house']}",
+        ]
+    )
+
+    homage = data.get("homage") or []
+    if homage:
+        homage_lines = "\n".join(f"  {i}. {h}" for i, h in enumerate(homage, 1))
+    else:
+        homage_lines = "  |x(none)|n"
+    homage_block = "|cHomage|n\n" + homage_lines
+
+    skills = data.get("skills") or {}
+    if skills:
+        skill_str = ", ".join(f"{name} {level}" for name, level in skills.items())
+    else:
+        skill_str = "|x(none)|n"
+    skills_block = "|cSkills|n\n  " + skill_str
+
+    table = EvTable(border="cells", width=SCORE_WIDTH)
+    table.add_row("|wCharacter Score|n")
+    table.add_row(identity)
+    table.add_row(homage_block)
+    table.add_row(skills_block)
+    return str(table)
+
+
+class CmdScore(BaseCommand):
+    """
+    Display your character's stats sheet.
+
+    Usage: score
+
+    Shows your name, class, title, house, homage (allegiances) and skills.
+    """
+
+    key = "score"
+    aliases = ["sc", "stats"]
+    locks = "cmd:all()"
+    help_category = "General"
+
+    def func(self):
+        character = self.caller
+        if not hasattr(character, "attributes"):
+            self.caller.msg("You have no character to score.")
+            return
+        sheet = format_score_sheet(gather_score_data(character))
+        self.caller.msg(sheet)
 
 
 class Command(BaseCommand):
