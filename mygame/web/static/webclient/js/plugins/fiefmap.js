@@ -95,6 +95,13 @@ let fiefmap_plugin = (function () {
         if (!$grid.length || !state.payload) return;
         var list = cells();
 
+        // Whether the grid owns the keyboard has to be sampled BEFORE the
+        // rebuild below: emptying the grid destroys the focused cell, and the
+        // browser drops focus to <body> the moment it goes. Sampling afterwards
+        // always reports "not focused" and would strand the player.
+        var active = document.activeElement;
+        var hadFocus = !!active && ($grid[0] === active || $.contains($grid[0], active));
+
         var crumb = state.level === 'fief'
             ? esc(state.payload.fief)
             : esc(state.payload.fief) + ' ▸ ' + esc(state.payload.ward.name) + ' ward';
@@ -136,8 +143,13 @@ let fiefmap_plugin = (function () {
             $grid.append($cell);
         });
 
+        // Only take the keyboard back if we already had it. render() runs on
+        // every server payload, including answers to `where` and `survey` typed
+        // at the command line -- reclaiming focus unconditionally rips the caret
+        // out of the input mid-word, and from then on the player's arrow keys go
+        // to whichever of the two they were not expecting.
         var $focused = $grid.children('[data-index="' + state.focus + '"]');
-        if (state.open && $focused.length) $focused.focus();
+        if (state.open && hadFocus && $focused.length) $focused.focus();
     };
 
     // -- actions ------------------------------------------------
