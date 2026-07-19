@@ -26,6 +26,15 @@ from commands.command import (
     CmdListScenes,
     CmdScore,
 )
+from commands.fief import (
+    CmdBuild,
+    CmdDemolish,
+    CmdFief,
+    CmdGoto,
+    CmdStep,
+    CmdSurvey,
+    CmdWhere,
+)
 
 
 def _add_scene_cmds(cmdset):
@@ -33,6 +42,16 @@ def _add_scene_cmds(cmdset):
     cmdset.add(CmdJoinScene())
     cmdset.add(CmdLeaveScene())
     cmdset.add(CmdListScenes())
+
+
+def _add_fief_cmds(cmdset):
+    cmdset.add(CmdFief())
+    cmdset.add(CmdWhere())
+    cmdset.add(CmdSurvey())
+    cmdset.add(CmdStep())
+    cmdset.add(CmdGoto())
+    cmdset.add(CmdBuild())
+    cmdset.add(CmdDemolish())
 
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):
@@ -55,6 +74,9 @@ class CharacterCmdSet(default_cmds.CharacterCmdSet):
         self.add(GenericBuildingCmd())
         self.add(CmdScore())
         _add_scene_cmds(self)
+        # land commands are character-only: the survey cursor lives on the
+        # character, so they are not added to the AccountCmdSet
+        _add_fief_cmds(self)
 
 class AccountCmdSet(default_cmds.AccountCmdSet):
     key = "DefaultAccount"

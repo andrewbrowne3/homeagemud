@@ -10,10 +10,24 @@ from commands.command import (
     do_leave_scene,
     do_list_scenes,
 )
+from commands.fief import (
+    do_build,
+    do_demolish,
+    do_goto,
+    do_select_fief,
+    do_step,
+    do_survey,
+    do_where,
+)
 
 
 def _account(session):
     return session.account
+
+
+def _character(session):
+    """The puppeted character; land commands act on the character, not account."""
+    return session.puppet
 
 
 def createscene(session, *args, **kwargs):
@@ -43,3 +57,38 @@ def leavescene(session, *args, **kwargs):
 def listscenes(session, *args, **kwargs):
     # called from the webclient on auto-refresh; keep it silent (no chat spam)
     do_list_scenes(_account(session), session, verbose=False)
+
+
+# -- land -------------------------------------------------------
+# A map UI sends these; they call the same functions as the typed commands, so
+# clicking a plot and typing "goto NE.C" cannot drift apart.
+
+
+def fief(session, *args, **kwargs):
+    do_select_fief(_character(session), session, name=kwargs.get("name"))
+
+
+def fiefwhere(session, *args, **kwargs):
+    do_where(_character(session), session)
+
+
+def fiefsurvey(session, *args, **kwargs):
+    do_survey(_character(session), session, target=kwargs.get("address"))
+
+
+def fiefstep(session, *args, **kwargs):
+    do_step(_character(session), session, direction=kwargs.get("direction"))
+
+
+def fiefgoto(session, *args, **kwargs):
+    do_goto(_character(session), session, target=kwargs.get("address"))
+
+
+def fiefbuild(session, *args, **kwargs):
+    do_build(_character(session), session,
+             what=kwargs.get("what"), where=kwargs.get("address"))
+
+
+def fiefdemolish(session, *args, **kwargs):
+    do_demolish(_character(session), session,
+                what=kwargs.get("what"), where=kwargs.get("address"))

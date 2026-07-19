@@ -22,6 +22,11 @@ let commandbar_plugin = (function () {
         { label: 'Join...',     prefill: 'joinscene ', group: 'scene' },
         { label: 'Leave...',    prefill: 'leavescene ', group: 'scene' },
 
+        // --- Land ---
+        { label: 'Map',         action: 'openFiefMap', group: 'land', style: 'primary' },
+        { label: 'Where',       send: 'where',         group: 'land' },
+        { label: 'Build...',    prefill: 'build ',     group: 'land' },
+
         // --- RP actions ---
         { label: 'Say',         prefill: 'say ',       group: 'rp' },
         { label: 'Pose',        prefill: 'pose ',      group: 'rp' },
@@ -52,11 +57,18 @@ let commandbar_plugin = (function () {
         }
     };
 
+    // action name -> [plugin global, method]. Add an entry rather than another
+    // if-branch when a plugin grows a button.
+    var ACTIONS = {
+        openCreateScene: ['scenes_plugin', 'openCreateDialog'],
+        openFiefMap:     ['fiefmap_plugin', 'toggle'],
+    };
+
     var runAction = function (name) {
-        if (name === 'openCreateScene'
-            && window.scenes_plugin
-            && typeof window.scenes_plugin.openCreateDialog === 'function') {
-            window.scenes_plugin.openCreateDialog();
+        var target = ACTIONS[name];
+        var plugin = target && window[target[0]];
+        if (plugin && typeof plugin[target[1]] === 'function') {
+            plugin[target[1]]();
             return;
         }
         console.warn('Unknown commandbar action:', name);
