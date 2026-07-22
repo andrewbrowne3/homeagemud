@@ -31,6 +31,8 @@ from commands.fief import (
     CmdDemolish,
     CmdFief,
     CmdGoto,
+    CmdGrant,
+    CmdPurse,
     CmdStep,
     CmdSurvey,
     CmdWhere,
@@ -52,6 +54,8 @@ def _add_fief_cmds(cmdset):
     cmdset.add(CmdGoto())
     cmdset.add(CmdBuild())
     cmdset.add(CmdDemolish())
+    cmdset.add(CmdPurse())
+    cmdset.add(CmdGrant())
 
 
 class CharacterCmdSet(default_cmds.CharacterCmdSet):

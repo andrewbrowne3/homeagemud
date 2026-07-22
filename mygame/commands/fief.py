@@ -70,6 +70,74 @@ def _require_fief(character, session):
 
 
 # -------------------------------------------------------------
+# the purse -- timber and coin a builder spends
+# -------------------------------------------------------------
+#
+# Resources live on the character for now. When the homage/ownership design
+# lands (the biggest open decision), this is the natural thing to move to a
+# house treasury: change these four functions and nothing else, exactly as the
+# fief stores its structures behind fiefs.py.
+
+TIMBER_ATTR = "timber"
+COIN_ATTR = "coin"
+
+
+def wallet(character):
+    """What a character can spend, as a plain dict. Missing attrs read as zero."""
+    return {
+        "timber": character.attributes.get(TIMBER_ATTR, default=0) or 0,
+        "coin": character.attributes.get(COIN_ATTR, default=0) or 0,
+    }
+
+
+def credit(character, timber=0, coin=0):
+    """
+    The single doorway resources come *in* through.
+
+    Every future way of earning -- a granted stipend, gathering off a plot, a
+    finished task, a structure's yield -- calls this and nothing else, the way
+    every placement goes through fief.add_structure. Keeping one entry point is
+    what will let the economy be balanced in one place later.
+    """
+    have = wallet(character)
+    character.attributes.add(TIMBER_ATTR, have["timber"] + timber)
+    character.attributes.add(COIN_ATTR, have["coin"] + coin)
+
+
+def _charge(character, timber=0, coin=0):
+    """Spend from the purse. Callers check affordability first."""
+    have = wallet(character)
+    character.attributes.add(TIMBER_ATTR, have["timber"] - timber)
+    character.attributes.add(COIN_ATTR, have["coin"] - coin)
+
+
+def _can_afford(character, name, timber, coin):
+    """
+    Whether the purse covers a cost, and if not, exactly what is short.
+
+    Names both the price and what the player holds, in the same breath, so a
+    refusal never sends anyone off to check their purse before trying again --
+    the same courtesy the acre check gives ("5 of 8 open, needs 6").
+    """
+    have = wallet(character)
+    short = []
+    if have["timber"] < timber:
+        short.append(f"{timber} timber (you have {have['timber']})")
+    if have["coin"] < coin:
+        short.append(f"{coin} coin (you have {have['coin']})")
+    if not short:
+        return True, ""
+    return False, f"You cannot afford {name}: it needs " + " and ".join(short) + "."
+
+
+def do_purse(character, session):
+    """Say what a character has to spend. One line, cheap to ask like `where`."""
+    have = wallet(character)
+    _reply(character, session,
+           msg=f"Your stores: {have['timber']} timber, {have['coin']} coin.")
+
+
+# -------------------------------------------------------------
 # rendering
 # -------------------------------------------------------------
 
@@ -170,13 +238,28 @@ def _payload(fief, address):
         "fief": fief.key,
         "cursor": address,
         "ward": fief.ward_summary(ward),
-        "plot": fief.plot_summary(address),
+        "plot": _with_icons(fief.plot_summary(address)),
         "order": list(fiefgrid.READ_ORDER),
         "wards": [fief.ward_summary(name) for name in fiefgrid.READ_ORDER],
-        "plots": [fief.plot_summary(plot) for plot in fiefgrid.plots_in(ward)],
+        "plots": [_with_icons(fief.plot_summary(plot))
+                  for plot in fiefgrid.plots_in(ward)],
         "acres_per_plot": fiefgrid.ACRES_PER_PLOT,
         "acres_per_ward": fiefgrid.ACRES_PER_WARD,
     }
+
+
+def _with_icons(plot_summary):
+    """
+    Attach each structure's map glyph, derived from its catalogue kind.
+
+    Done here at send time rather than stored on the structure, so a plot built
+    before icons existed still lights up, and storage stays as lean as it was.
+    The catalogue coupling lives in this command layer, keeping typeclasses/
+    fiefs.py free of it.
+    """
+    for s in plot_summary["structures"]:
+        s["icon"] = structures.icon_for(s.get("kind"))
+    return plot_summary
 
 
 # -------------------------------------------------------------
@@ -350,19 +433,31 @@ def do_build(character, session, what=None, where=None):
         return
 
     name = structures.display_name(kind)
+    cost_timber, cost_coin = entry["timber"], entry["coin"]
+    affordable, why = _can_afford(character, name, cost_timber, cost_coin)
+    if not affordable:
+        _reply(character, session, msg=why)
+        return
+
+    # capacity is checked inside add_structure; only charge once it succeeds,
+    # so a plot with no room never costs the builder anything.
     ok, msg = fief.add_structure(address, name, entry["acres"], kind=kind)
     if not ok:
         _reply(character, session, msg=msg)
         return
+    _charge(character, timber=cost_timber, coin=cost_coin)
 
     free = fief.acres_free(address)
     taken = entry["acres"]
+    left = wallet(character)
     _reply(
         character,
         session,
         msg=(f"You raise {name} on {fiefgrid.speak(address)} ({address}). "
              f"{taken} acre{'' if taken == 1 else 's'} taken, {free} of "
-             f"{fiefgrid.ACRES_PER_PLOT} left."),
+             f"{fiefgrid.ACRES_PER_PLOT} left. "
+             f"{cost_timber} timber, {cost_coin} coin spent; "
+             f"{left['timber']} timber and {left['coin']} coin remain."),
         oob_cmd="fief_built",
         oob_payload=_payload(fief, address),
     )
@@ -626,3 +721,77 @@ class CmdGoto(BaseCommand):
     def func(self):
         do_goto(self.caller, _session_from_caller(self.caller),
                 target=self.args.strip() if self.args else None)
+
+
+class CmdPurse(BaseCommand):
+    """
+    Say how much timber and coin you have to build with.
+
+    Usage: purse
+
+    Timber and coin are what building costs, on top of the acres a plot has
+    room for. Type `build` on its own to hear what each thing costs.
+    """
+
+    key = "purse"
+    aliases = ["wallet", "coffers"]
+    locks = "cmd:all()"
+    help_category = "Land"
+
+    def func(self):
+        do_purse(self.caller, _session_from_caller(self.caller))
+
+
+class CmdGrant(BaseCommand):
+    """
+    Give a character timber or coin. Staff tool.
+
+    Usage:
+      grant <character> = timber <n> [coin <n> ...]
+
+    Example:
+      grant Alduin = timber 200 coin 1000
+
+    This is the stopgap way to put resources in a purse while there is no way
+    to earn them in play yet. When earning arrives it will call the same
+    `credit` doorway this does.
+    """
+
+    key = "grant"
+    locks = "cmd:perm(Builder) or perm(Admin)"
+    help_category = "Building"
+
+    def func(self):
+        caller = self.caller
+        args = (self.args or "").strip()
+        if "=" not in args:
+            caller.msg("Usage: grant <character> = timber <n> [coin <n>]")
+            return
+        who, spec = [part.strip() for part in args.split("=", 1)]
+        target = caller.search(who, global_search=True)
+        if not target:
+            return  # search() already reported the failure
+
+        tokens = spec.split()
+        if not tokens or len(tokens) % 2 != 0:
+            caller.msg("Give resource/amount pairs, e.g. timber 100 coin 500.")
+            return
+        grants = {}
+        for i in range(0, len(tokens), 2):
+            resource = tokens[i].lower()
+            if resource not in ("timber", "coin"):
+                caller.msg(f"Unknown resource '{tokens[i]}'. Use timber or coin.")
+                return
+            try:
+                grants[resource] = grants.get(resource, 0) + int(tokens[i + 1])
+            except ValueError:
+                caller.msg(f"'{tokens[i + 1]}' is not a number.")
+                return
+
+        credit(target, timber=grants.get("timber", 0), coin=grants.get("coin", 0))
+        have = wallet(target)
+        caller.msg(f"Granted to {target.key}. Now holding "
+                   f"{have['timber']} timber, {have['coin']} coin.")
+        if target != caller:
+            parts = [f"{n} {r}" for r, n in grants.items()]
+            target.msg("You are granted " + " and ".join(parts) + ".")

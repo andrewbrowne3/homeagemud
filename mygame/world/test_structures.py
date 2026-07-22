@@ -65,6 +65,30 @@ class TestCatalogue(unittest.TestCase):
         for name, entry in structures.CATALOGUE.items():
             self.assertTrue(entry.get("desc"), f"{name} has no description")
 
+    def test_every_entry_has_a_price_and_an_icon(self):
+        for name, entry in structures.CATALOGUE.items():
+            self.assertGreater(entry.get("timber", -1), 0, f"{name} costs no timber")
+            self.assertGreater(entry.get("coin", -1), 0, f"{name} costs no coin")
+            self.assertTrue(entry.get("icon"), f"{name} has no icon")
+
+    def test_listing_reads_the_costs(self):
+        line = next(
+            l for l in structures.format_catalogue().splitlines()
+            if l.strip().startswith("sawmill")
+        )
+        self.assertIn("3 acres", line)
+        self.assertIn("12 timber", line)
+        self.assertIn("50 coin", line)
+
+
+class TestIcons(unittest.TestCase):
+    def test_icon_for_known_kind(self):
+        self.assertEqual(structures.icon_for("keep"), structures.CATALOGUE["keep"]["icon"])
+
+    def test_icon_for_unknown_kind_falls_back(self):
+        self.assertEqual(structures.icon_for("dragon"), structures.DEFAULT_ICON)
+        self.assertEqual(structures.icon_for(None), structures.DEFAULT_ICON)
+
 
 if __name__ == "__main__":
     unittest.main()

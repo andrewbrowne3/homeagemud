@@ -136,6 +136,8 @@ class TestBuilding(EvenniaCommandTest):
         super().setUp()
         self.fief = evennia.create_object("typeclasses.fiefs.Fief", key="Ashford")
         self.call(fief_cmds.CmdFief(), "Ashford")
+        # a full purse: these tests are about placement, not economy
+        fief_cmds.credit(self.char1, timber=1000, coin=10000)
 
     def test_bare_build_reads_the_catalogue(self):
         out = self.call(fief_cmds.CmdBuild(), "")
@@ -206,6 +208,7 @@ class TestDemolishing(EvenniaCommandTest):
         super().setUp()
         self.fief = evennia.create_object("typeclasses.fiefs.Fief", key="Ashford")
         self.call(fief_cmds.CmdFief(), "Ashford")
+        fief_cmds.credit(self.char1, timber=1000, coin=10000)
         self.call(fief_cmds.CmdBuild(), "sawmill")   # 3 acres on C.C
         self.call(fief_cmds.CmdBuild(), "granary")   # 2 acres on C.C
 
@@ -293,6 +296,7 @@ class TestBuildPermission(EvenniaCommandTest):
         super().setUp()
         self.fief = evennia.create_object("typeclasses.fiefs.Fief", key="Ashford")
         self.call(fief_cmds.CmdFief(), "Ashford")
+        fief_cmds.credit(self.char1, timber=1000, coin=10000)
 
     def test_unclaimed_fief_is_open(self):
         out = self.call(fief_cmds.CmdBuild(), "sawmill")
@@ -361,10 +365,70 @@ class TestMapPayload(EvenniaCommandTest):
         p = self._payload("NE.C")
         self.assertEqual(p["plots"][4]["structures"][0]["name"], "a sawmill")
 
+    def test_structure_entries_carry_a_map_icon(self):
+        from world import structures
+
+        p = self._payload("NE.C")
+        self.assertEqual(p["plots"][4]["structures"][0]["icon"],
+                         structures.icon_for("sawmill"))
+
     def test_payload_is_json_serialisable(self):
         import json
 
         json.dumps(self._payload("NE.C"))  # raises if anything is not a plain type
+
+
+class TestEconomy(EvenniaCommandTest):
+    def setUp(self):
+        super().setUp()
+        self.fief = evennia.create_object("typeclasses.fiefs.Fief", key="Ashford")
+        self.call(fief_cmds.CmdFief(), "Ashford")
+
+    def test_purse_starts_empty(self):
+        out = self.call(fief_cmds.CmdPurse(), "")
+        self.assertIn("0 timber, 0 coin", out)
+
+    def test_catalogue_reads_the_costs(self):
+        out = self.call(fief_cmds.CmdBuild(), "")
+        self.assertIn("sawmill -- 3 acres, 12 timber, 50 coin", out)
+
+    def test_building_broke_is_refused_and_places_nothing(self):
+        out = self.call(fief_cmds.CmdBuild(), "sawmill")
+        self.assertIn("cannot afford", out)
+        self.assertIn("12 timber", out)
+        self.assertEqual(self.fief.structures_at("C.C"), [])
+
+    def test_building_spends_from_the_purse(self):
+        fief_cmds.credit(self.char1, timber=100, coin=100)
+        out = self.call(fief_cmds.CmdBuild(), "sawmill")   # 12 timber, 50 coin
+        self.assertIn("You raise", out)
+        self.assertIn("12 timber, 50 coin spent", out)
+        self.assertEqual(fief_cmds.wallet(self.char1), {"timber": 88, "coin": 50})
+
+    def test_shortfall_names_only_what_is_missing(self):
+        fief_cmds.credit(self.char1, timber=100, coin=5)  # coin short for 50
+        out = self.call(fief_cmds.CmdBuild(), "sawmill")
+        self.assertIn("50 coin (you have 5)", out)
+        self.assertNotIn("timber (you have", out)
+
+    def test_no_room_never_charges(self):
+        fief_cmds.credit(self.char1, timber=100, coin=1000)
+        self.call(fief_cmds.CmdBuild(), "orchard")          # fills 6 of 8
+        before = fief_cmds.wallet(self.char1)
+        out = self.call(fief_cmds.CmdBuild(), "sawmill")    # needs 3, only 2 left
+        self.assertIn("No room", out)
+        self.assertEqual(fief_cmds.wallet(self.char1), before)
+
+    def test_grant_credits_the_purse(self):
+        out = self.call(fief_cmds.CmdGrant(),
+                        f"{self.char1.key} = timber 200 coin 1000")
+        self.assertIn("200 timber, 1000 coin", out)
+        self.assertEqual(fief_cmds.wallet(self.char1),
+                         {"timber": 200, "coin": 1000})
+
+    def test_grant_rejects_odd_pairs(self):
+        out = self.call(fief_cmds.CmdGrant(), f"{self.char1.key} = timber")
+        self.assertIn("pairs", out)
 
 
 class TestCmdsetWiring(EvenniaCommandTest):
@@ -376,7 +440,8 @@ class TestCmdsetWiring(EvenniaCommandTest):
         cmdset = CharacterCmdSet()
         cmdset.at_cmdset_creation()
         keys = [cmd.key for cmd in cmdset.commands]
-        for key in ("fief", "where", "survey", "step", "goto", "build", "demolish"):
+        for key in ("fief", "where", "survey", "step", "goto", "build",
+                    "demolish", "purse", "grant"):
             self.assertIn(key, keys)
 
     def test_no_command_key_is_defined_twice(self):
