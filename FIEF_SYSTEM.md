@@ -91,30 +91,40 @@ Northeast ward (NE), ward 3 of 9: 5 of 72 acres used.
 ```
 > build
 You can build:
-  cottage -- 1 acre, housing for a tenant family.
-  smithy -- 1 acre, a forge and anvil.
-  chapel -- 2 acres, a small place of worship.
-  granary -- 2 acres, dry storage for grain.
-  sawmill -- 3 acres, cuts timber into planks.
-  barracks -- 4 acres, quarters for a garrison.
-  millpond -- 4 acres, impounded water to drive a mill.
-  orchard -- 6 acres, fruit trees in rows.
-  keep -- 8 acres, a fortified tower; fills a whole plot.
+  cottage -- 1 acre, 5 timber, 20 coin, housing for a tenant family.
+  smithy -- 1 acre, 4 timber, 30 coin, a forge and anvil.
+  chapel -- 2 acres, 8 timber, 60 coin, a small place of worship.
+  granary -- 2 acres, 10 timber, 40 coin, dry storage for grain.
+  sawmill -- 3 acres, 12 timber, 50 coin, cuts timber into planks.
+  barracks -- 4 acres, 20 timber, 120 coin, quarters for a garrison.
+  millpond -- 4 acres, 6 timber, 80 coin, impounded water to drive a mill.
+  orchard -- 6 acres, 4 timber, 40 coin, fruit trees in rows.
+  keep -- 8 acres, 40 timber, 400 coin, a fortified tower; fills a whole plot.
 
 > build sawmill at NE.C
 You raise a sawmill on the center plot of northeast ward (NE.C).
-3 acres taken, 5 of 8 left.
+3 acres taken, 5 of 8 left. 12 timber, 50 coin spent; 88 timber and 950 coin remain.
 
 > build orchard
 No room: the center plot of northeast ward has 5 of 8 acres open,
 and that needs 6.
+
+> build keep
+You cannot afford a keep: it needs 40 timber (you have 12) and 400 coin (you have 50).
 ```
 
-Every refusal tells you the number, so a player never has to go and check
-somewhere else whether a thing will fit. Adding a new building type to that
-catalogue is one line — it's a list, not code.
+Every refusal tells you the number — whether it's acres that won't fit or a purse
+that won't stretch — so a player never has to go and check somewhere else. Adding
+a new building type to that catalogue is still one line; it just carries a price
+now.
 
-`demolish` (or `raze`) pulls something back down and frees its acres.
+Two costs are in play. **Acres** are the room a plot has (a plot is eight of
+them); **timber and coin** are what the building costs to raise, spent from your
+purse. `purse` (or `wallet`) says what you're holding. See the economy note
+below for where timber and coin come from.
+
+`demolish` (or `raze`) pulls something back down and frees its acres. It does not
+refund timber or coin — pulling a thing down does not un-spend what it cost.
 
 ### The map
 
@@ -126,6 +136,14 @@ The map never gets busier as you go deeper. It's always nine squares, at every
 level. That's what makes it work on a phone: you're never rendering 81 tiny
 cells, you're rendering nine big ones and throwing away eight-ninths of the land
 each time you go in.
+
+The squares are big and each built thing draws as an **icon** — a keep 🏰, a
+sawmill 🪚, an orchard 🌳 — so a sighted player reads a plot at a glance. At the
+fief level, where a whole ward can hold nine plots' worth of building, each ward
+shows a fill bar instead: how much of its land is spoken for. None of this costs
+the text side anything: the icons are decorative and marked so a screen reader
+skips them, still reading the same spoken description of what stands where. The
+map serves both kinds of player from the one set of squares.
 
 ---
 
@@ -176,39 +194,47 @@ layer built on the same addresses.
 
 ---
 
-## Decisions we need from you
+## Settled since the last round
+
+- **648 acres stays.** It divides evenly by nine twice; the eight-acre plot is
+  the unit.
+- **Plots stay two levels, 8 acres each.** What got bigger was the *map* — larger
+  squares with icons — not the land. Per-acre precision (a third level) remains a
+  later option; the address scheme still allows it.
+- **Demolishing large buildings does not ask "are you sure?"** It's fast and
+  quiet, which is what a screen-reader player doing routine teardown wants.
+- **Timber and coin are in.** Building now costs both, on top of acres (see the
+  costs above), spent from a purse. What's still open is *how you earn them* —
+  that decision is below.
+
+## Decisions we still need from you
 
 **1. Who is allowed to build?** Right now a fief with no house set is open to
 anyone, and once a house holds it, only that house may build or demolish. That's
 a placeholder. The real question is how building rights flow through homage — can
 a lord grant a tenant the right to build on one ward? Can a steward act for an
 absent lord? Does demolishing need more authority than building? This is the
-biggest open item and it's a game-design question, not a technical one.
+biggest open item and it's a game-design question, not a technical one. (It's
+also where the purse will likely move: a **house treasury** rather than a
+personal one, once we know how a house is modelled.)
 
-**2. Plot size.** 8-acre plots, or add a third level for near-acre precision?
-(See above.)
-
-**3. 648 acres or exactly 640?** (See above.)
-
-**4. Should demolishing a large building ask "are you sure?"** Right now it
-doesn't — `demolish keep` takes down eight acres of masonry instantly. A
-confirmation on everything would be tedious for a screen-reader player doing
-routine teardown; a confirmation only above some size threshold might be the
-right balance.
-
-**5. What does building actually cost?** At the moment it costs acres and
-nothing else. No timber, no coin, no time to construct, and demolishing refunds
-nothing. Whenever the economy arrives, this is where it plugs in.
+**2. How do players earn timber and coin?** The purse and the spending are
+built, but for now resources only enter by a staff `grant`. You floated walking
+into a plot to gather, or completing tasks for a payout, or structures producing
+over time — any mix is possible, because every one of them will pour into the
+same single doorway the code already routes through. This is the next real piece
+of the economy.
 
 ---
 
 ## What exists today
 
 Working and tested: the layout and addressing, text navigation with position
-tracking, the building catalogue with capacity limits, build and demolish, and
-the accessible web map. 83 automated tests cover it.
+tracking, the building catalogue with acre capacity **and timber/coin costs**,
+build and demolish, the purse and a staff `grant`, and the accessible web map
+**with icons and ward fill-bars**. 96 automated tests cover it.
 
-Not built yet: ownership beyond the placeholder above, any economy, structures
-as places you can walk into (they're currently records on the land), and any way
-for a player to be granted a fief in the first place — fiefs are created by an
-admin for now.
+Not built yet: any way to *earn* timber or coin in play (only the staff grant so
+far), ownership beyond the house placeholder above, structures as places you can
+walk into (they're currently records on the land), and any way for a player to
+be granted a fief in the first place — fiefs are created by an admin for now.
