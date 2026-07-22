@@ -82,12 +82,37 @@ let fiefmap_plugin = (function () {
     };
 
     var cellDetail = function (cell) {
-        if (state.level === 'fief') {
-            return cell.acres_used + '/' + cell.acres_total;
-        }
-        var names = (cell.structures || []).map(function (s) { return s.name; });
-        return (names.length ? names.join(', ') : '—') + '<br>'
-            + cell.acres_used + '/' + cell.acres_total;
+        // Both levels show the acre fill as a number. What actually stands on a
+        // plot is carried by its icons (below) and, at either level, by the
+        // cell's aria-label — the spoken detail is never dropped, only the
+        // redundant on-screen text is.
+        return cell.acres_used + '/' + cell.acres_total + ' ac';
+    };
+
+    // The structures on a plot, drawn big. aria-hidden so a screen reader reads
+    // the cell's label instead of a mouthful of emoji names; every structure is
+    // already named in that label (see cellLabel).
+    var cellIcons = function (cell) {
+        if (state.level !== 'ward') return '';
+        var glyphs = (cell.structures || [])
+            .map(function (s) { return esc(s.icon || '▪'); }).join(' ');
+        if (!glyphs) return '';
+        return '<span aria-hidden="true" class="fiefmap-icons" '
+            + 'style="font-size:26px; line-height:1.15; margin:2px 0;">'
+            + glyphs + '</span>';
+    };
+
+    // A ward has up to nine plots' worth of buildings — too many to draw as
+    // icons — so at the fief level it gets a fill bar instead: how much of its
+    // land is spoken for, at a glance.
+    var wardBar = function (cell) {
+        if (state.level !== 'fief') return '';
+        var pct = cell.acres_total
+            ? Math.round(100 * cell.acres_used / cell.acres_total) : 0;
+        return '<span aria-hidden="true" style="display:block; width:80%; '
+            + 'height:7px; background:#333; border-radius:4px; margin:4px auto 0;">'
+            + '<span style="display:block; height:100%; width:' + pct + '%; '
+            + 'background:#7ab7ff; border-radius:4px;"></span></span>';
     };
 
     var render = function () {
@@ -100,6 +125,12 @@ let fiefmap_plugin = (function () {
             : esc(state.payload.fief) + ' ▸ ' + esc(state.payload.ward.name) + ' ward';
         $('#fiefmap-crumb').html(crumb);
         $('#fiefmap-back').toggle(state.level === 'ward');
+        // Spell out the way out for the level you are on -- at the ward level the
+        // point players kept getting stuck at is "how do I get back to the wards".
+        $('#fiefmap-help').text(state.level === 'fief'
+            ? 'Arrow keys move between wards. Enter opens a ward. Escape closes the map.'
+            : 'Arrow keys move between plots. Enter looks at a plot. '
+              + 'Escape or Backspace goes back to all wards.');
         $grid.attr('aria-label', state.level === 'fief'
             ? 'Wards of ' + state.payload.fief
             : 'Plots of ' + state.payload.ward.name + ' ward');
@@ -114,10 +145,10 @@ let fiefmap_plugin = (function () {
                 .attr('aria-label', cellLabel(cell, index))
                 .attr('data-index', index)
                 .css({
-                    border: isCursor ? '2px solid #7ab7ff' : '1px solid #555',
+                    border: isCursor ? '3px solid #7ab7ff' : '1px solid #555',
                     background: focused ? '#2c3a49' : '#1f1f1f',
-                    'border-radius': '4px',
-                    padding: '6px',
+                    'border-radius': '6px',
+                    padding: '10px',
                     'aspect-ratio': '1',
                     display: 'flex',
                     'flex-direction': 'column',
@@ -126,12 +157,15 @@ let fiefmap_plugin = (function () {
                     'text-align': 'center',
                     cursor: 'pointer',
                     overflow: 'hidden',
-                    'font-size': '11px',
+                    'font-size': '13px',
                     'line-height': '1.3',
                 });
             $cell.html(
-                '<strong style="font-size:12px;">' + esc(cellTitle(cell)) + '</strong>'
-                + '<span style="color:#aaa;">' + cellDetail(cell) + '</span>'
+                '<strong style="font-size:15px;">' + esc(cellTitle(cell)) + '</strong>'
+                + cellIcons(cell)
+                + wardBar(cell)
+                + '<span style="color:#aaa; font-size:12px; margin-top:2px;">'
+                + cellDetail(cell) + '</span>'
             );
             $grid.append($cell);
         });
@@ -189,20 +223,41 @@ let fiefmap_plugin = (function () {
         ArrowLeft: 'west', ArrowRight: 'east',
     };
 
+    // The keys the grid consumes must be stopped here, not just default-
+    // prevented. The webclient's default_in plugin has a keydown handler on the
+    // document that yanks focus back to the command input on almost any key (the
+    // same grabber tamed for the Create Scene dialog in commit 559d740). If a
+    // grid keystroke is allowed to bubble to it, focus lands in the input and the
+    // next arrow press never reaches this handler -- so arrows would move the
+    // cursor exactly once and then go dead. stopPropagation keeps focus on the
+    // grid for a keyboard-only player, which is the whole point of the map.
+    var claim = function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+    };
+
     var onKeydown = function (ev) {
         var key = ev.key;
         if (key === 'Escape') {
-            ev.preventDefault();
+            claim(ev);
             if (!zoomOut()) close();
             return;
         }
+        if (key === 'Backspace') {
+            claim(ev);
+            // Backspace always means "up a level", never "close" -- a player
+            // trying to get out of a ward should never risk dismissing the whole
+            // map by mistake. At the top level it just says so.
+            if (!zoomOut()) announce('You are already at the whole fief.');
+            return;
+        }
         if (key === 'Enter' || key === ' ' || key === 'Spacebar') {
-            ev.preventDefault();
+            claim(ev);
             activate(state.focus);
             return;
         }
         if (!DIRECTIONS[key]) return;   // let every other key through untouched
-        ev.preventDefault();
+        claim(ev);
         if (state.level === 'ward') {
             // the server owns the cursor at plot level; it will answer with
             // fief_moved, including any ward crossing or edge cue
@@ -241,8 +296,22 @@ let fiefmap_plugin = (function () {
 
     // -- panel --------------------------------------------------
 
+    // While the map is open, switch OFF default_in's habit of pulling focus to
+    // the command input on every keystroke. stopPropagation on the grid handles
+    // the steady state, but there is a gap: each server-driven re-render empties
+    // the grid, so focus rests on <body> for a frame, and an arrow pressed in
+    // that frame would slip through to default_in and drop the player into the
+    // command line. Turning the grabber off outright closes that gap. This is the
+    // same lever the Create Scene dialog pulls (see scenes.js).
+    var setInputGrabbing = function (on) {
+        if (window.plugins && window.plugins['default_in']) {
+            window.plugins['default_in'].setKeydownFocus(on);
+        }
+    };
+
     var open = function () {
         state.open = true;
+        setInputGrabbing(false);
         $('#fiefmap-panel').show();
         send('fief', {});            // ask for a fresh payload
         window.setTimeout(function () {
@@ -253,6 +322,7 @@ let fiefmap_plugin = (function () {
 
     var close = function () {
         state.open = false;
+        setInputGrabbing(true);      // give the command line its focus back
         $('#fiefmap-panel').hide();
         // hand focus back to the command line, never leave it floating
         var $input = $('.inputfield:last');
@@ -266,34 +336,39 @@ let fiefmap_plugin = (function () {
         if ($('#fiefmap-panel').length) return;
         var $panel = $('<div id="fiefmap-panel" role="dialog" aria-modal="false" '
                      + 'aria-label="Fief map"></div>');
+        // Anchored to the right edge, full height, rather than floating in the
+        // middle of the screen. A fixed home is easier to find your way back to,
+        // and the extra width lets the nine cells be big.
         $panel.css({
             position: 'fixed',
-            top: '60px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: 'min(92vw, 380px)',
+            top: '44px',
+            right: '0',
+            bottom: '0',
+            width: 'min(96vw, 520px)',
             'z-index': 900,
             background: '#161616',
             color: '#eee',
-            border: '1px solid #555',
-            'border-radius': '6px',
-            padding: '10px',
-            'box-shadow': '0 4px 18px rgba(0,0,0,0.6)',
+            'border-left': '1px solid #555',
+            padding: '12px',
+            'box-shadow': '-4px 0 18px rgba(0,0,0,0.6)',
             display: 'none',
-            'font-size': '13px',
+            'box-sizing': 'border-box',
+            'font-size': '14px',
+            'overflow-y': 'auto',
         });
         $panel.html([
-            '<div style="display:flex; align-items:center; gap:6px; margin-bottom:8px;">',
+            '<div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">',
+            // labelled, not a bare arrow -- a screen reader and a sighted player
+            // both get "Back to all wards" rather than a lone glyph.
             '  <button id="fiefmap-back" class="btn btn-sm btn-outline-secondary" ',
-            '          type="button" aria-label="Back to the whole fief">↑</button>',
+            '          type="button" aria-label="Back to all wards">← Wards</button>',
             '  <strong id="fiefmap-crumb" style="flex:1;"></strong>',
             '  <button id="fiefmap-close" class="btn btn-sm btn-outline-secondary" ',
-            '          type="button" aria-label="Close the map">✕</button>',
+            '          type="button" aria-label="Close the map">✕ Close</button>',
             '</div>',
             '<div id="fiefmap-grid" role="grid" ',
-            '     style="display:grid; grid-template-columns:repeat(3,1fr); gap:6px;"></div>',
-            '<p style="color:#888; font-size:11px; margin:8px 0 0;">',
-            '  Arrow keys move, Enter opens, Escape goes back.</p>',
+            '     style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;"></div>',
+            '<p id="fiefmap-help" style="color:#999; font-size:12px; margin:10px 0 0;"></p>',
             '<div id="fiefmap-live" aria-live="polite" role="status" ',
             '     style="position:absolute; width:1px; height:1px; overflow:hidden; ',
             '            clip:rect(0 0 0 0); white-space:nowrap;"></div>',

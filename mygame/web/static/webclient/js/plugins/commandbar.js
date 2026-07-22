@@ -82,43 +82,121 @@ let commandbar_plugin = (function () {
         }
     };
 
+    // Spoken names for the group boundaries, so a screen reader announces
+    // "Land group" as you arrow into it rather than passing a silent divider.
+    var GROUP_LABELS = {
+        info:  'Information',
+        scene: 'Channels',
+        land:  'Land',
+        rp:    'Roleplay',
+        acct:  'Account',
+    };
+
+    // The bar is an ARIA toolbar: ONE tab stop, arrow keys move between buttons.
+    // Nineteen buttons as nineteen tab stops is a long way to tab past to reach
+    // the command line; a toolbar is a single stop you arrow across, which is the
+    // pattern a screen-reader user already knows from every other toolbar.
+    var barButtons = function () { return $('#commandbar .cmdbar-btn'); };
+
+    var focusButton = function (index) {
+        var $btns = barButtons();
+        if (!$btns.length) return;
+        var n = $btns.length;
+        var i = ((index % n) + n) % n;   // wrap around either end
+        $btns.attr('tabindex', -1);
+        $btns.eq(i).attr('tabindex', 0).focus();
+    };
+
+    var onBarKeydown = function (ev) {
+        var key = ev.key;
+        if (key === 'Enter' || key === ' ' || key === 'Spacebar') {
+            // Activate the button ourselves and stop the event, so default_in's
+            // Enter handler does not also fire and send an empty command line.
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (document.activeElement) document.activeElement.click();
+            return;
+        }
+        var $btns = barButtons();
+        var here = $btns.index(document.activeElement);
+        if (here < 0) here = 0;
+        var next = null;
+        if (key === 'ArrowRight' || key === 'ArrowDown') next = here + 1;
+        else if (key === 'ArrowLeft' || key === 'ArrowUp') next = here - 1;
+        else if (key === 'Home') next = 0;
+        else if (key === 'End') next = $btns.length - 1;
+        else return;                       // leave other keys alone
+        // stopPropagation keeps default_in from yanking focus to the input as the
+        // player arrows along the bar (the same grabber the fief map turns off).
+        ev.preventDefault();
+        ev.stopPropagation();
+        focusButton(next);
+    };
+
     var renderBar = function () {
         var $bar = $('#commandbar');
         if (!$bar.length) return;
         $bar.empty();
-        var lastGroup = null;
+
+        // group consecutive commands so each group can be one labelled region
+        var groups = [];
         COMMANDS.forEach(function (cmd) {
-            if (cmd.group && lastGroup && cmd.group !== lastGroup) {
-                $bar.append('<span style="display: inline-block; width: 1px; height: 20px; background: #555; margin: 0 6px; vertical-align: middle;"></span>');
+            var key = cmd.group || '_';
+            if (!groups.length || groups[groups.length - 1].key !== key) {
+                groups.push({ key: key, cmds: [] });
             }
-            lastGroup = cmd.group || lastGroup;
-            var $btn = $('<button type="button" style="margin-right: 4px; margin-bottom: 4px;"></button>')
-                .addClass(btnClass(cmd.style))
-                .text(cmd.label);
-            $btn.on('click', function () {
-                if (cmd.send) sendText(cmd.send);
-                else if (cmd.prefill) prefillInput(cmd.prefill);
-                else if (cmd.action) runAction(cmd.action);
+            groups[groups.length - 1].cmds.push(cmd);
+        });
+
+        var globalIndex = 0;
+        groups.forEach(function (grp, gi) {
+            var $grp = $('<span role="group"></span>')
+                .attr('aria-label', GROUP_LABELS[grp.key] || 'Commands')
+                .css({
+                    display: 'inline-block',
+                    'border-left': gi ? '1px solid #555' : 'none',
+                    'padding-left': gi ? '8px' : '0',
+                    'margin-left': gi ? '2px' : '0',
+                });
+            grp.cmds.forEach(function (cmd) {
+                var $btn = $('<button type="button" class="cmdbar-btn"></button>')
+                    .attr('tabindex', globalIndex === 0 ? 0 : -1)
+                    .addClass(btnClass(cmd.style))
+                    .css({ 'margin-right': '4px', 'margin-bottom': '4px' })
+                    .text(cmd.label);
+                $btn.on('click', function () {
+                    if (cmd.send) sendText(cmd.send);
+                    else if (cmd.prefill) prefillInput(cmd.prefill);
+                    else if (cmd.action) runAction(cmd.action);
+                });
+                $grp.append($btn);
+                globalIndex++;
             });
-            $bar.append($btn);
+            $bar.append($grp);
         });
     };
 
     var injectBar = function () {
         if ($('#commandbar').length) return;
-        var $bar = $('<div id="commandbar"></div>').css({
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            'z-index': 500,
-            background: '#1a1a1a',
-            color: '#eee',
-            padding: '4px 8px',
-            'border-bottom': '1px solid #444',
-            'line-height': '1.4',
-            'font-size': '13px',
-        });
+        var $bar = $('<div id="commandbar"></div>')
+            .attr('role', 'toolbar')
+            .attr('aria-label', 'Game commands')
+            .attr('aria-orientation', 'horizontal')
+            .css({
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                'z-index': 500,
+                background: '#1a1a1a',
+                color: '#eee',
+                padding: '4px 8px',
+                'border-bottom': '1px solid #444',
+                'line-height': '1.4',
+                'font-size': '13px',
+            });
+        // one delegated handler drives roving focus for every button
+        $bar.on('keydown', '.cmdbar-btn', onBarKeydown);
         $('body').append($bar);
         $('#clientwrapper').css('padding-top', '44px');
         $('body').css('padding-top', '0');
