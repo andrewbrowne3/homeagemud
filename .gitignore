@@ -13,3 +13,4 @@ mygame/server/conf/secret_settings.py
 *.sqlite3
 .env
 .DS_Store
+.claude/
